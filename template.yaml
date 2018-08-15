@@ -1,0 +1,154 @@
+AWSTemplateFormatVersion: 2010-09-09
+Transform: AWS::Serverless-2016-10-31
+Description: |
+  Sample stack featuring a Step Functions workflow iterating over a list of 
+  objects and modifying them in place.
+
+Resources:
+  ProcessExecute:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}-ProcessExecute"
+      Description: Executes the processing workflow.
+      Role: !GetAtt ProcessWorkflowRole.Arn
+      Handler: "process-execute"
+      Runtime: go1.x
+      Timeout: 5
+      CodeUri: cmd/process-execute/
+      Environment:
+        Variables:
+          STATE_MACHINE_ARN: !Join ["", ["arn:aws:states:", Ref: "AWS::Region", ":", Ref: "AWS::AccountId", ":stateMachine:", Ref: "AWS::StackName","-Process"]]
+
+  ProcessMoveToEnd:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${AWS::StackName}-ProcessMoveToEnd"
+      Role: !GetAtt ProcessWorkflowRole.Arn
+      Handler: move-to-end
+      Runtime: go1.x
+      Timeout: 5
+      CodeUri: cmd/move-to-end/
+
+  ProcessWorkflowRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      RoleName: !Sub "${AWS::StackName}-ProcessWorkflowRole"
+      Path: /
+
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - 
+            Effect: Allow
+            Sid: AllowLambdaServiceToAssumeRole
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+
+      Policies:
+        - 
+          PolicyName: !Sub "${AWS::StackName}-ProcessWorkflowRole"
+          PolicyDocument:
+            Statement:
+              - 
+                Effect: Allow
+                Action:
+                  - states:StartExecution
+                Resource:
+                  - !Join ["", ["arn:aws:states:", Ref: "AWS::Region", ":", Ref: "AWS::AccountId", ":stateMachine:", Ref: "AWS::StackName","-Process"]]
+
+              - 
+                Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  - !Join ["", ["arn:aws:logs:", Ref: "AWS::Region", ":", Ref: "AWS::AccountId", ":log-group:/aws/lambda/*"]]
+
+  StepFunctionsServiceRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      RoleName: !Sub "${AWS::StackName}-StepFunctionsServiceRole"
+      Path: "/"
+
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - 
+            Effect: "Allow"
+            Sid: AllowStepFunctionsServiceToAssumeRole
+            Principal:
+              Service:
+                - !Sub states.${AWS::Region}.amazonaws.com
+            Action: "sts:AssumeRole"
+
+      Policies:
+        - 
+          PolicyName: !Sub "${AWS::StackName}-StepFunctionsServiceRole"
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - 
+                Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                Resource:
+                  - !Join ["", ["arn:aws:lambda:", Ref: "AWS::Region", ":", Ref: "AWS::AccountId", ":", "function:*" ]]
+
+  ProcessWorkflow:
+    Type: "AWS::StepFunctions::StateMachine"
+    Properties:
+      StateMachineName: !Sub "${AWS::StackName}-Process"
+      DefinitionString: !Sub |
+        {
+          "Comment": "Processes an arbitrary list of jobs.",
+          "StartAt": "ProcessFirstPass",
+          "States": {
+            "ProcessFirstPass": {
+              "Type": "Pass",
+              "Result": "success",
+              "ResultPath": "$.jobs[0].firstResult",
+              "Next": "ProcessSecondPass"
+            },
+            "ProcessSecondPass": {
+              "Type": "Pass",
+              "Result": "success",
+              "ResultPath": "$.jobs[0].secondResult",
+              "Next": "MarkAsDone"
+            },
+            "MarkAsDone": {
+              "Type": "Pass",
+              "ResultPath": "$.jobs[0].done",
+              "Result": true,
+              "Next": "MoveToEnd"
+            },
+            "MoveToEnd": {
+              "Type": "Task",
+              "Comment": "Moves the currently processed job to the end of the array",
+              "InputPath": "$.jobs",
+              "ResultPath": "$.jobs",
+              "Resource": "${ProcessMoveToEnd.Arn}",
+              "Next": "AllDone"
+            },
+            "AllDone": {
+              "Type": "Choice",
+              "Choices": [
+                {
+                  "Variable": "$.jobs[0].done",
+                  "BooleanEquals": true,
+                  "Next": "Done"
+                }
+              ],
+              "Default": "ProcessFirstPass"
+            },
+            "Done": {
+              "Type": "Pass",
+              "End": true
+            }
+          }
+        }
+      RoleArn: !GetAtt StepFunctionsServiceRole.Arn
+
