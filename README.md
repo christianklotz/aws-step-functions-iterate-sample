@@ -3,7 +3,20 @@ A complete serverless stack demonstrating how to process an arbitrary number of
 jobs using AWS Step Functions. This is the sample project to the article
 [Processing an arbitrary number of jobs with AWS Step Functions](https://medium.com/@christianklotz/c185c2d2608).
 
+## Prerequisites
+In order to build, deploy and run this sample app you'll need an AWS account
+and the following tools installed on your machine.
+
+- [Go](https://golang.org/) to compile the Lambda functions
+- [AWS CLI](https://aws.amazon.com/cli/) for deployment
+- [AWS SAM CLI](https://github.com/awslabs/aws-sam-cli) for deployment
+
+Make sure to clone the repository into your `$GOPATH`.
+
 ## Build
+Get all dependencies and build the Lambda functions for the Amazon Linux.
+
+    go get ./cmd/...
 
     GOOS=linux go build -o ./cmd/move-to-end/move-to-end ./cmd/move-to-end
     GOOS=linux go build -o ./cmd/move-to-end/process-execute ./cmd/process-execute
