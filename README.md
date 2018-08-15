@@ -1,6 +1,7 @@
 # AWS Step Functions Iteration Sample
 A complete serverless stack demonstrating how to process an arbitrary number of
-jobs using AWS Step Functions. This is the sample project for the 
+jobs using AWS Step Functions. This is the sample project to the article
+[Processing an arbitrary number of jobs with AWS Step Functions](https://medium.com/@christianklotz/c185c2d2608).
 
 ## Build
 
