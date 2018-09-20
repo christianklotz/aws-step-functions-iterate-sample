@@ -19,7 +19,7 @@ Get all dependencies and build the Lambda functions for the Amazon Linux.
     go get ./cmd/...
 
     GOOS=linux go build -o ./cmd/move-to-end/move-to-end ./cmd/move-to-end
-    GOOS=linux go build -o ./cmd/move-to-end/process-execute ./cmd/process-execute
+    GOOS=linux go build -o ./cmd/process-execute/process-execute ./cmd/process-execute
 
 ## Deploy
 
